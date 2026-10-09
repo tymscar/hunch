@@ -17,11 +17,13 @@
 </style></head>
 <body>
   <h1>Hunch</h1>
-  <p>Only the text of the page you invoke it on is sent to TypeSafe, and only while the find bar is open.</p>
-  <p id="nokey" style="display:none;padding:10px 12px;border-radius:6px;background:#fef3c7;color:#92400e">You need a TypeSafe API key before the first search. Create one at <a href="https://console.typesafe.ai/keys" target="_blank">console.typesafe.ai/keys</a>, paste it below, and save.</p>
-  <label>TypeSafe API key <input id="apiKey" type="password" placeholder="apikey_…"></label>
+  <p>Only the text of the page you invoke it on is sent to your chosen provider, and only while the find bar is open.</p>
+  <p id="nokey" style="display:none;padding:10px 12px;border-radius:6px;background:#fef3c7;color:#92400e">You need an API key before the first search. Create one at <a id="keysLink" href="https://console.typesafe.ai/keys" target="_blank">the provider console</a>, paste it below, and save.</p>
+  <label>Provider <select id="provider"></select></label>
+  <label><span id="apiKeyLabel">API key</span> <input id="apiKey" type="password"></label>
   <label>Model <small id="modelNote"></small>
-    <select id="model"></select></label>
+    <input id="model" list="modelOptions" autocomplete="off">
+    <datalist id="modelOptions"></datalist></label>
   <label>Shortcut <small id="shortcutHint">Click the field and press the keys you want.</small>
     <span class="row">
       <input id="shortcut" type="text" readonly placeholder="…">

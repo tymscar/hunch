@@ -1,12 +1,16 @@
 import browser from "webextension-polyfill";
 import { answer } from "./background/answer";
 import { SEARCH_PORT, type Search, type SearchEvent, type TabMessage } from "./shared/protocol";
-import { hasApiAccess, loadSettings, requestApiAccess } from "./shared/settings";
+import { hasApiAccess, loadSettings, PROVIDERS, requestApiAccess } from "./shared/settings";
 import { shortcutLabel } from "./shared/shortcut";
 
 async function toggle(tabId: number | undefined) {
   if (tabId === undefined) return;
-  await requestApiAccess();
+  const { provider } = await loadSettings();
+  // Chrome rejects permissions.request outside the synchronous user gesture that
+  // triggered this, and awaiting storage above already leaves it. Manifest host
+  // permissions are granted at install, so only ask when one is actually missing.
+  if (!(await hasApiAccess(provider))) await requestApiAccess(provider).catch(() => false);
   if (!(await ensureContentScript(tabId))) return unavailable(tabId);
   await sendToTab(tabId, { type: "toggle" });
 }
@@ -63,10 +67,10 @@ browser.runtime.onConnect.addListener((port) => {
         void browser.runtime.openOptionsPage();
         return emit({ type: "failure", message: "No API key yet. Paste one in the settings tab that just opened." });
       }
-      if (!(await hasApiAccess()))
+      if (!(await hasApiAccess(settings.provider)))
         return emit({
           type: "failure",
-          message: `Hunch needs permission to reach api.typesafe.ai. Press ${await shortcutLabel()} again and accept the prompt.`,
+          message: `Hunch needs permission to reach ${PROVIDERS[settings.provider].host}. Press ${await shortcutLabel()} again and accept the prompt.`,
         });
       await answer(req, settings, abort.signal, emit);
     } catch (e) {

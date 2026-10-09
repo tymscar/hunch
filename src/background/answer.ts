@@ -1,7 +1,7 @@
 import { TypeSafeClient } from "@typesafe-ai/sdk";
 import { type Block, type BlockId, type Progress, pageText, type Search } from "../shared/protocol";
 import { MAX_CHUNK_BLOCKS, MAX_CHUNK_CHARS, MAX_CONCURRENT_REQUESTS, questionsFor } from "../shared/questions";
-import type { Settings } from "../shared/settings";
+import { PROVIDERS, type Settings } from "../shared/settings";
 
 export async function answer(
   req: Search,
@@ -11,6 +11,7 @@ export async function answer(
 ): Promise<void> {
   const client = new TypeSafeClient({
     apiKey: settings.apiKey,
+    baseURL: PROVIDERS[settings.provider].baseURL,
     defaultModel: settings.model,
     dangerouslyAllowBrowser: true,
     timeout: 15_000,

@@ -1,5 +1,14 @@
 import browser from "webextension-polyfill";
-import { DEFAULT_SETTINGS, listModels, loadSettings, requestApiAccess, saveSettings } from "./shared/settings";
+import {
+  DEFAULT_SETTINGS,
+  listModels,
+  loadSettings,
+  type ModelChoice,
+  PROVIDERS,
+  type Provider,
+  requestApiAccess,
+  saveSettings,
+} from "./shared/settings";
 import {
   canRebindShortcut,
   commandShortcutFromEvent,
@@ -12,8 +21,12 @@ import {
 } from "./shared/shortcut";
 
 const field = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const provider = field<HTMLSelectElement>("provider");
 const apiKey = field<HTMLInputElement>("apiKey");
-const model = field<HTMLSelectElement>("model");
+const apiKeyLabel = field("apiKeyLabel");
+const keysLink = field<HTMLAnchorElement>("keysLink");
+const model = field<HTMLInputElement>("model");
+const modelOptions = field("modelOptions");
 const modelNote = field("modelNote");
 const banner = field("nokey");
 const saved = field("saved");
@@ -54,30 +67,43 @@ field("resetShortcut").addEventListener("click", async () => {
   await showShortcut("Back to the default");
 });
 
-interface ModelChoice {
-  name: string;
-  description: string;
+function fillProviders(selected: Provider) {
+  provider.replaceChildren(
+    ...(Object.keys(PROVIDERS) as Provider[]).map((p) => new Option(PROVIDERS[p].label, p, false, p === selected)),
+  );
 }
 
-async function modelChoices(apiKey: string, selected: string): Promise<{ models: ModelChoice[]; note: string }> {
-  const current = { name: selected, description: "" };
-  if (!apiKey) return { models: [current], note: "Save an API key to see the models you can use." };
-  try {
-    const models = await listModels(apiKey);
-    const selectedIsListed = models.some((m) => m.name === selected);
-    return { models: selectedIsListed ? models : [current, ...models], note: "" };
-  } catch (e) {
-    return { models: [current], note: `Could not list models: ${e instanceof Error ? e.message : String(e)}` };
+function applyProviderChrome(p: Provider) {
+  const info = PROVIDERS[p];
+  apiKeyLabel.textContent = `${info.label} API key`;
+  apiKey.placeholder = info.keyPlaceholder;
+  keysLink.href = info.keysUrl;
+  keysLink.textContent = info.keysUrl.replace(/^https?:\/\//, "");
+}
+
+async function loadModels(p: Provider, key: string, selected: string) {
+  let models: ModelChoice[] = [];
+  let note = "";
+  if (PROVIDERS[p].canListModels && !key) {
+    note = "Save an API key to see the models you can use.";
+  } else {
+    try {
+      models = await listModels(key, p);
+    } catch (e) {
+      note = `Could not list models: ${e instanceof Error ? e.message : String(e)}`;
+    }
   }
-}
-
-async function loadModels(apiKey: string, selected: string) {
-  const { models, note } = await modelChoices(apiKey, selected);
-  model.replaceChildren(...models.map((m) => new Option(labelFor(m), m.name, false, m.name === selected)));
+  modelOptions.replaceChildren(
+    ...models.map((m) => {
+      const o = document.createElement("option");
+      o.value = m.name;
+      if (m.description) o.label = m.description;
+      return o;
+    }),
+  );
+  model.value = selected;
   modelNote.textContent = note;
 }
-
-const labelFor = (m: ModelChoice) => (m.description ? `${m.name} (${m.description})` : m.name);
 
 async function load() {
   if (!canRebindShortcut) {
@@ -97,23 +123,28 @@ async function load() {
   }
   shortcut.value = await shortcutLabel();
   const s = await loadSettings();
+  fillProviders(s.provider);
+  applyProviderChrome(s.provider);
   apiKey.value = s.apiKey;
-  await loadModels(s.apiKey, s.model);
+  await loadModels(s.provider, s.apiKey, s.model);
   showKeyBanner(Boolean(s.apiKey));
 }
 
+provider.addEventListener("change", () => {
+  const p = provider.value as Provider;
+  applyProviderChrome(p);
+  void loadModels(p, apiKey.value.trim(), model.value.trim() || DEFAULT_SETTINGS.model);
+});
+
 async function save() {
-  const s = {
-    apiKey: apiKey.value.trim(),
-    model: model.value || DEFAULT_SETTINGS.model,
-  };
-  await requestApiAccess();
+  const p = provider.value as Provider;
+  const s = { provider: p, apiKey: apiKey.value.trim(), model: model.value.trim() || DEFAULT_SETTINGS.model };
+  await requestApiAccess(p);
   await saveSettings(s);
   showKeyBanner(Boolean(s.apiKey));
-  await loadModels(s.apiKey, s.model);
+  await loadModels(p, s.apiKey, s.model);
   saved.textContent = "Saved";
   setTimeout(() => (saved.textContent = ""), 1500);
 }
-
 field("save").addEventListener("click", () => void save());
 void load();
